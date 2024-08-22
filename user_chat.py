@@ -2,6 +2,7 @@
 
 import requests
 import streamlit as st
+import uuid
 
 API_URL = "http://middle_layer:8000"
 
@@ -17,17 +18,18 @@ def send_to_api(endpoint, data=None):
 st.set_page_config(page_title="LCNC Guide Chat", page_icon=":robot:")
 st.title("LCNC Guide Chat")
 
-if "session_id" not in st.session_state:
-    st.session_state.session_id = None
+# Check if session_id exists, if not prompt the user to input it
+if "session_id" not in st.session_state or st.session_state.session_id is None:
+    st.session_state.session_id = st.text_input("Please enter your session ID to continue:")
 
 if "messages" not in st.session_state:
     st.session_state.messages = [
-        {"role": "assistant", "content": "Welcome! To get started, tell me about your business."}
+        {"role": "assistant", "content": "Welcome! Please enter your session ID to continue."}
     ]
 
 def handle_user_input(prompt):
-    if st.session_state.session_id is None:
-        st.error("Session ID is not set. Please ask the admin to upload the relevant documents.")
+    if not st.session_state.session_id:
+        st.error("Session ID is not set. Please enter your session ID to continue.")
         return
 
     st.session_state.messages.append({"role": "user", "content": prompt})
@@ -56,4 +58,5 @@ if prompt:
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.write(message["content"])
+
 
