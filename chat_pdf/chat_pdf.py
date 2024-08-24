@@ -1,4 +1,4 @@
-#chat_pdf.py
+# chat_pdf.py
 
 import os
 import uuid
@@ -15,6 +15,10 @@ app = Flask(__name__)
 
 # Dictionary to store RAG data for each session
 session_rag_data = {}
+
+# Global variables for admin-ingested RAG data
+global_rag_data = None
+session_id = "abcd12345678"
 
 class ChatPDF:
     
@@ -37,14 +41,16 @@ class ChatPDF:
             # Load and process the PDF
             docs = PyPDFLoader(file_path=pdf_file_path).load()
             chunks = self.text_splitter.split_documents(docs)
-            print(f"chunks created: {len(chunks)}")
+            print(f"Chunks created: {len(chunks)}")
 
             persist_directory = f"./chroma_db/{session_id}"
             os.makedirs(persist_directory, exist_ok=True)
             db = Chroma.from_documents(chunks, self.embedding, persist_directory=persist_directory)
             
-            # Store RAG data for the session
+            # Store RAG data for the session and update global RAG
             session_rag_data[session_id] = db
+            global global_rag_data
+            global_rag_data = db  # Update the global RAG with the latest ingested data
             print(f"FAQ RAG data created and persisted for session ID: {session_id}")
 
             return jsonify({"session_id": session_id, "message": "PDF ingested successfully and FAQ data created."})
@@ -54,13 +60,13 @@ class ChatPDF:
 
     def ask(self, session_id: str, query: str):
         try:
-            if session_id not in session_rag_data:
+            # Use global RAG if session-specific data is not available
+            db = session_rag_data.get(session_id, global_rag_data)
+            if db is None:
                 return jsonify({"error": "FAQ data is not available for this session. Please contact the admin to upload the FAQ document."}), 404
 
-            # Retrieve session-specific RAG data
-            db = session_rag_data[session_id]
             matching_docs = db.similarity_search(query)
-            print(f"Matched documents: {len(matching_docs)} numbers")
+            print(f"Matched documents: {len(matching_docs)}")
 
             if not matching_docs:
                 return jsonify({"response": "No relevant documents/result found."})
@@ -73,10 +79,8 @@ class ChatPDF:
                 return_source_documents=True,
                 verbose=True
             )
-            print("Chain created")
             result = chain.invoke({"input_documents": matching_docs, "query": query})
             response_text = result.get('result', 'No answer found.')
-            print(f"Response text length: {len(response_text)}")
 
             return jsonify({"response": response_text})
         except Exception as e:
@@ -120,4 +124,10 @@ def ask():
         return jsonify({"error": f"Error during query processing: {str(e)}"}), 500
 
 if __name__ == '__main__':
+    # Initialize global RAG data
+    if os.path.exists(f"./chroma_db/{session_id}"):
+        print("Loading global RAG data...")
+        global_rag_data = Chroma(persist_directory=f"./chroma_db/{session_id}", embedding_function=SentenceTransformerEmbeddings(model_name="all-MiniLM-L6-v2"))
+        print("Global RAG data loaded successfully.")
+
     app.run(host='0.0.0.0', port=8000)
