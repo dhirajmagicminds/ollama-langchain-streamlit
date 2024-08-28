@@ -55,20 +55,27 @@ class ChatPDF:
 
     def ingest(self, pdf_file_path: str, session_id: str):
         try:
-            # Load and process the PDF
-            docs = PyPDFLoader(file_path=pdf_file_path).load()
-            chunks = self.text_splitter.split_documents(docs)
-            print(f"Chunks created: {len(chunks)}")
-
+            # Define the directory for persistence
             persist_directory = f"./chroma_db/{session_id}"
-            os.makedirs(persist_directory, exist_ok=True)
-            db = Chroma.from_documents(chunks, self.embedding, persist_directory=persist_directory)
-            
+
+            # Check if the embedding already exists
+            if os.path.exists(persist_directory) and os.listdir(persist_directory):
+                print(f"Embedding already exists for session ID: {session_id}. Loading existing data...")
+                db = Chroma(persist_directory=persist_directory, embedding_function=self.embedding)
+            else:
+                # Load and process the PDF
+                docs = PyPDFLoader(file_path=pdf_file_path).load()
+                chunks = self.text_splitter.split_documents(docs)
+                print(f"Chunks created: {len(chunks)}")
+
+                os.makedirs(persist_directory, exist_ok=True)
+                db = Chroma.from_documents(chunks, self.embedding, persist_directory=persist_directory)
+                print(f"FAQ RAG data created and persisted for session ID: {session_id}")
+
             # Store RAG data for the session and update global RAG
             session_rag_data[session_id] = db
             global global_rag_data
             global_rag_data = db  # Update the global RAG with the latest ingested data
-            print(f"FAQ RAG data created and persisted for session ID: {session_id}")
 
             return jsonify({"session_id": session_id, "message": "PDF ingested successfully and FAQ data created."})
         except Exception as e:
@@ -142,7 +149,7 @@ def ask():
 
 if __name__ == '__main__':
     # Initialize global RAG data
-    if os.path.exists(f"./chroma_db/{session_id}"):
+    if os.path.exists(f"./chroma_db/{session_id}") and os.listdir(f"./chroma_db/{session_id}"):
         print("Loading global RAG data...")
         global_rag_data = Chroma(persist_directory=f"./chroma_db/{session_id}", embedding_function=OpenAIEmbeddings(openai_api_key=OPENAI_API_KEY))
         print("Global RAG data loaded successfully.")
