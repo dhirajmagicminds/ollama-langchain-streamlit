@@ -2,14 +2,18 @@
 
 import os
 import uuid
+from dotenv import load_dotenv
 from flask import Flask, request, jsonify
-from langchain_chroma import Chroma
-from langchain_community.chat_models import ChatOllama
-from langchain_community.embeddings.sentence_transformer import SentenceTransformerEmbeddings
-from langchain_community.document_loaders import PyPDFLoader
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.prompts import PromptTemplate
 from langchain.chains import RetrievalQA
+from langchain.embeddings import OpenAIEmbeddings
+from langchain.document_loaders import PyPDFLoader
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain.vectorstores import Chroma
+from langchain.prompts import PromptTemplate
+from langchain.chat_models import ChatOpenAI
+
+# Load environment variables
+load_dotenv(".env.dev")
 
 app = Flask(__name__)
 
@@ -20,12 +24,25 @@ session_rag_data = {}
 global_rag_data = None
 session_id = "abcd12345678"
 
+# Access the OpenAI API key
+OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
+PROJECT_ID = os.getenv('PROJECT_ID')
+ORGANIZATION_ID = os.getenv('ORGANIZATION_ID')
+ORGANIZATION_NAME = os.getenv('ORGANIZATION_NAME')
+
+
 class ChatPDF:
     
     def __init__(self):
-        self.model = ChatOllama(model="phi3:latest", base_url="http://ollama:11434", verbose=True)
+        # Initialize the OpenAI Chat model
+        self.model = ChatOpenAI(
+            model="gpt-4o-mini",  # You can specify the desired OpenAI model here
+            openai_api_key=OPENAI_API_KEY,
+            organization=ORGANIZATION_ID,
+            temperature=0.2
+        )
         self.text_splitter = RecursiveCharacterTextSplitter(chunk_size=1024, chunk_overlap=100)
-        self.embedding = SentenceTransformerEmbeddings(model_name="all-MiniLM-L6-v2")
+        self.embedding = OpenAIEmbeddings(openai_api_key=OPENAI_API_KEY)
         self.prompt_template = PromptTemplate.from_template(
             """
             <s> [INST] You are an assistant for answering questions. Use the following context to answer the question. 
@@ -127,7 +144,7 @@ if __name__ == '__main__':
     # Initialize global RAG data
     if os.path.exists(f"./chroma_db/{session_id}"):
         print("Loading global RAG data...")
-        global_rag_data = Chroma(persist_directory=f"./chroma_db/{session_id}", embedding_function=SentenceTransformerEmbeddings(model_name="all-MiniLM-L6-v2"))
+        global_rag_data = Chroma(persist_directory=f"./chroma_db/{session_id}", embedding_function=OpenAIEmbeddings(openai_api_key=OPENAI_API_KEY))
         print("Global RAG data loaded successfully.")
 
     app.run(host='0.0.0.0', port=8000)
