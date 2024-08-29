@@ -17,12 +17,9 @@ load_dotenv(".env.dev")
 
 app = Flask(__name__)
 
-# Dictionary to store RAG data for each session
-session_rag_data = {}
-
 # Global variables for admin-ingested RAG data
 global_rag_data = None
-session_id = "abcd12345678"
+session_id = "abcd12345678"  # This ID can be dynamic if needed
 persist_directory = "/chroma_db/global"
 
 # Access the OpenAI API key
@@ -31,13 +28,12 @@ PROJECT_ID = os.getenv('PROJECT_ID')
 ORGANIZATION_ID = os.getenv('ORGANIZATION_ID')
 ORGANIZATION_NAME = os.getenv('ORGANIZATION_NAME')
 
-
 class ChatPDF:
     
     def __init__(self):
         # Initialize the OpenAI Chat model
         self.model = ChatOpenAI(
-            model="gpt-4o-mini",  # You can specify the desired OpenAI model here
+            model="gpt-4o-mini",
             openai_api_key=OPENAI_API_KEY,
             organization=ORGANIZATION_ID,
             temperature=0.2
@@ -58,7 +54,7 @@ class ChatPDF:
         try:
             # Check if the embedding already exists
             if os.path.exists(persist_directory) and os.listdir(persist_directory):
-                print(f"Embedding already exists for session ID: {session_id}. Loading existing data from global space...")
+                print(f"Embedding already exists in {persist_directory}. Loading existing data...")
                 db = Chroma(persist_directory=persist_directory, embedding_function=self.embedding)
             else:
                 # Load and process the PDF
@@ -68,10 +64,9 @@ class ChatPDF:
 
                 os.makedirs(persist_directory, exist_ok=True)
                 db = Chroma.from_documents(chunks, self.embedding, persist_directory=persist_directory)
-                print(f"FAQ RAG data created and persisted for session ID: {session_id}")
+                print(f"FAQ RAG data created and persisted in {persist_directory}.")
 
-            # Store RAG data for the session and update global RAG
-            session_rag_data[session_id] = db
+            # Update global RAG data
             global global_rag_data
             global_rag_data = db  # Update the global RAG with the latest ingested data
 
@@ -83,9 +78,9 @@ class ChatPDF:
     def ask(self, session_id: str, query: str):
         try:
             # Use global RAG if session-specific data is not available
-            db = session_rag_data.get(session_id, global_rag_data)
+            db = global_rag_data
             if db is None:
-                return jsonify({"error": "FAQ data is not available for this session. Please contact the admin to upload the FAQ document."}), 404
+                return jsonify({"error": "FAQ data is not available. Please contact the admin to upload the FAQ document."}), 404
 
             matching_docs = db.similarity_search(query)
             print(f"Matched documents: {len(matching_docs)}")
@@ -146,9 +141,9 @@ def ask():
         return jsonify({"error": f"Error during query processing: {str(e)}"}), 500
 
 if __name__ == '__main__':
-    # Initialize global RAG data
+    # Initialize global RAG data if exists
     if os.path.exists(persist_directory) and os.listdir(persist_directory):
-        global_rag_data = Chroma(persist_directory="/chroma_db/global", embedding_function=OpenAIEmbeddings(openai_api_key=OPENAI_API_KEY))
+        global_rag_data = Chroma(persist_directory=persist_directory, embedding_function=OpenAIEmbeddings(openai_api_key=OPENAI_API_KEY))
         print("Global RAG data loaded successfully.")
 
     app.run(host='0.0.0.0', port=8000)
