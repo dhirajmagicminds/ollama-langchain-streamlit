@@ -23,6 +23,7 @@ session_rag_data = {}
 # Global variables for admin-ingested RAG data
 global_rag_data = None
 session_id = "abcd12345678"
+persist_directory = "/chroma_db/global"
 
 # Access the OpenAI API key
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
@@ -55,18 +56,15 @@ class ChatPDF:
 
     def ingest(self, pdf_file_path: str, session_id: str):
         try:
-            # Define the directory for persistence
-            persist_directory = f"./chroma_db/{session_id}"
-
             # Check if the embedding already exists
             if os.path.exists(persist_directory) and os.listdir(persist_directory):
-                print(f"Embedding already exists for session ID: {session_id}. Loading existing data...")
+                print(f"Embedding already exists for session ID: {session_id}. Loading existing data from global space...")
                 db = Chroma(persist_directory=persist_directory, embedding_function=self.embedding)
             else:
                 # Load and process the PDF
                 docs = PyPDFLoader(file_path=pdf_file_path).load()
                 chunks = self.text_splitter.split_documents(docs)
-                print(f"Chunks created: {len(chunks)}")
+                print(f"New embedding chunks created: {len(chunks)}")
 
                 os.makedirs(persist_directory, exist_ok=True)
                 db = Chroma.from_documents(chunks, self.embedding, persist_directory=persist_directory)
@@ -149,9 +147,8 @@ def ask():
 
 if __name__ == '__main__':
     # Initialize global RAG data
-    if os.path.exists(f"./chroma_db/{session_id}") and os.listdir(f"./chroma_db/{session_id}"):
-        print("Loading global RAG data...")
-        global_rag_data = Chroma(persist_directory=f"./chroma_db/{session_id}", embedding_function=OpenAIEmbeddings(openai_api_key=OPENAI_API_KEY))
+    if os.path.exists(persist_directory) and os.listdir(persist_directory):
+        global_rag_data = Chroma(persist_directory="/chroma_db/global", embedding_function=OpenAIEmbeddings(openai_api_key=OPENAI_API_KEY))
         print("Global RAG data loaded successfully.")
 
     app.run(host='0.0.0.0', port=8000)
