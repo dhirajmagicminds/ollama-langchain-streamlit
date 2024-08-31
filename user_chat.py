@@ -22,40 +22,59 @@ st.title("LCNC Guide Chat")
 if "session_id" not in st.session_state:
     st.session_state.session_id = str(uuid.uuid4())  # Automatically generate session ID for the user
 
+if "current_step" not in st.session_state:
+    st.session_state.current_step = 1
+
 if "business_category" not in st.session_state:
     st.session_state.business_category = None
+
+if "primary_product_service" not in st.session_state:
+    st.session_state.primary_product_service = None
+
+if "target_customer" not in st.session_state:
+    st.session_state.target_customer = None
+
+if "user_roles" not in st.session_state:
+    st.session_state.user_roles = None
 
 if "template_selected" not in st.session_state:
     st.session_state.template_selected = None
 
-if "pages_selected" not in st.session_state:
-    st.session_state.pages_selected = None
-
 if "messages" not in st.session_state:
     st.session_state.messages = [
-        {"role": "assistant", "content": "Welcome! Let's get started. Tell me about your business?"}
+        {"role": "assistant", "content": "Welcome! Let's get started with a few questions to better understand your needs. What is your company name?"}
     ]
 
 def handle_user_input(prompt):
     st.session_state.messages.append({"role": "user", "content": prompt})
 
-    if st.session_state.business_category is None:
-        # Send the business details to the API
-        response = send_to_api('ask', data={"session_id": st.session_state.session_id, "query": f"What would be the business category for this business details: {prompt}"})
-        if response and "response" in response:
-            st.session_state.messages.append({"role": "assistant", "content": response["response"]})
-            st.session_state.business_category = prompt
-            st.session_state.messages.append({"role": "assistant", "content": "Great! Please select a template that fits your business."})
-        else:
-            st.session_state.messages.append({"role": "assistant", "content": "I didn't get that. Can you please provide more details?"})
-    elif st.session_state.template_selected is None:
+    if st.session_state.current_step == 1:
+        st.session_state.business_category = prompt
+        st.session_state.messages.append({"role": "assistant", "content": "Great! What is the primary product or service your business offers? E.g., 'Mobile app development, Online food delivery, Virtual fitness classes, Financial consulting, Property management, etc.'"})
+        st.session_state.current_step += 1
+
+    elif st.session_state.current_step == 2:
+        st.session_state.primary_product_service = prompt
+        st.session_state.messages.append({"role": "assistant", "content": "Who is your target customer: individuals, other businesses, or both? E.g., 'B2C (selling directly to consumers), B2B (selling to other businesses), or B2B2C (selling to businesses who then sell to consumers)'"})
+        st.session_state.current_step += 1
+
+    elif st.session_state.current_step == 3:
+        st.session_state.target_customer = prompt
+        st.session_state.messages.append({"role": "assistant", "content": "Could you please tell me more about the user roles in your app? For example, will there be roles like 'restaurant owners, delivery personnel, Admin and customers'? E.g., 'Customers, Service Providers, Administrators, Managers, Sellers, Buyers, etc.'"})
+        st.session_state.current_step += 1
+
+    elif st.session_state.current_step == 4:
+        st.session_state.user_roles = prompt
+        st.session_state.messages.append({"role": "assistant", "content": "Based on your business needs, which type of app template do you feel would best suit your vision? E.g., 'Template A or Template B'"})
+        st.session_state.current_step += 1
+
+    elif st.session_state.current_step == 5:
         st.session_state.template_selected = prompt
-        st.session_state.messages.append({"role": "assistant", "content": "Would you like to add more pages? Please provide the page details."})
-    elif st.session_state.pages_selected is None:
-        st.session_state.pages_selected = prompt
-        st.session_state.messages.append({"role": "assistant", "content": "Your choices have been saved. You can now customize your pages in the LCNC platform."})
+        st.session_state.messages.append({"role": "assistant", "content": "Thank you! Your information has been saved. You can now customize your pages in the LCNC platform."})
+        st.session_state.current_step += 1
+
     else:
-        # If all initial information is gathered, proceed with normal Q&A
+        # Proceed with normal Q&A after the structured flow
         response = send_to_api('ask', data={"session_id": st.session_state.session_id, "query": prompt})
         if response and "response" in response:
             st.session_state.messages.append({"role": "assistant", "content": response["response"]})
@@ -63,7 +82,7 @@ def handle_user_input(prompt):
             st.session_state.messages.append({"role": "assistant", "content": "I didn't get that. Can you please provide more details?"})
 
 # Chat input handling
-prompt = st.chat_input("Your question")
+prompt = st.chat_input("Your response here")
 if prompt:
     handle_user_input(prompt)
 
